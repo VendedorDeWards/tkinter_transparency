@@ -1,34 +1,36 @@
 import cv2
 import numpy as np
 from PIL import Image, ImageTk
-from tkinter import filedialog, Tk, Label, Button
+from tkinter import filedialog, Tk, Frame, Label, Button
 
 
 class Program:
     def __init__(self, master):
         self.master = master
         master.title("Transparency program")
-        master.geometry("300x250")
+        self.master_width, self.master_height = (500, 450)
+        master.geometry(f"{self.master_width}x{self.master_height}")
 
         self.image_path = None
         self.loaded_image_rgb = None
-        self.preview_image_rgb = None
-        self.tk_image_rgb = None
         self.loaded_image_transparent = None
-        self.preview_image_transparent = None
-        self.tk_image_transparent = None
-
         self.panel_a = None
         self.panel_b = None
 
-        self.label = Label(master, text="Look at this transparency...")
-        self.label.pack()
+        self.top_frame = Frame(master, width=self.master_width, height=self.master_height/10, pady=5)
+        self.top_frame.grid(row=0, columnspan=2)
+        self.center_frame = Frame(master, width=self.master_width, height=self.master_height/10*7, pady=5)
+        self.center_frame.grid(row=1, columnspan=2)
+        self.bottom_frame = Frame(master, width=self.master_width, height=self.master_height/10*2, pady=5)
+        self.bottom_frame.grid(row=2, columnspan=2)
 
-        self.open_file_label = Label(master)
-        self.open_file_label.pack()
+        self.label = Label(self.top_frame, text="Look at this transparency...")
+        self.path_file_label = Label(self.bottom_frame, wraplength=250)
+        self.open_file_button = Button(self.bottom_frame, text="Open File...", command=self.load_image)
 
-        self.open_file_button = Button(master, text="Open File...", command=self.load_image)
-        self.open_file_button.pack()
+        self.label.grid(row=0, columnspan=2)
+        self.path_file_label.grid(row=0, columnspan=2)
+        self.open_file_button.grid(row=1, column=1)
 
     def load_image(self):
         self.image_path = filedialog.askopenfilename(
@@ -37,30 +39,33 @@ class Program:
             filetypes=(("jpeg files", "*.jpg"), ("png files", "*.png"), ("all files", "*.*"))
         )
 
-        self.loaded_image_rgb = cv2.cvtColor(cv2.imread(self.image_path), cv2.COLOR_BGR2RGB)
-        self.preview_image_rgb = cv2.resize(self.loaded_image_rgb, (0, 0), fx=0.2, fy=0.2)
-        self.tk_image_rgb = Image.fromarray(self.preview_image_rgb)
-        self.tk_image_rgb = ImageTk.PhotoImage(self.tk_image_rgb)
+        try:
+            self.loaded_image_rgb = cv2.cvtColor(cv2.imread(self.image_path), cv2.COLOR_BGR2RGB)
+            self.loaded_image_transparent = self.cvt_transparent(self.loaded_image_rgb)
 
-        self.loaded_image_transparent = self.cvt_transparent(self.loaded_image_rgb)
-        self.preview_image_transparent = cv2.resize(self.loaded_image_transparent, (0, 0), fx=0.2, fy=0.2)
-        self.tk_image_transparent = Image.fromarray(self.preview_image_transparent)
-        self.tk_image_transparent = ImageTk.PhotoImage(self.tk_image_transparent)
+            self.path_file_label["text"] = self.image_path
 
-        self.open_file_label["text"] = self.image_path
+            self.panel_a = self.update_panel(self.panel_a, self.loaded_image_rgb, "left")
+            self.panel_b = self.update_panel(self.panel_b, self.loaded_image_transparent, "right")
 
-        self.panel_a = self.update_panel(self.panel_a, self.tk_image_rgb, "left")
-        self.panel_b = self.update_panel(self.panel_b, self.tk_image_transparent, "right")
+            self.panel_a.grid(row=0, column=0)
+            self.panel_b.grid(row=0, column=1)
+        except cv2.error:
+            print("no file loaded!")
+        except:
+            print("error!")
 
-    @staticmethod
-    def update_panel(panel, image, side):
+    def update_panel(self, panel, image, side):
+        height, width, channels = image.shape
+        constraint = height if height > width else width
+        ratio = (self.master_width/2-30)/constraint
+        tk_preview_image = ImageTk.PhotoImage(Image.fromarray(cv2.resize(image, (0, 0), fx=ratio, fy=ratio)))
         if panel is None:
-            panel = Label(image=image)
-            panel.image = image
-            panel.pack(side=side, padx=10, pady=10)
+            panel = Label(self.center_frame, image=tk_preview_image)
+            panel.image = tk_preview_image
         else:
-            panel.configure(image=image)
-            panel.image = image
+            panel.configure(image=tk_preview_image)
+            panel.image = tk_preview_image
 
         return panel
 
@@ -85,9 +90,8 @@ class Program:
     def cvt_transparent(image):
         loaded_image_gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
         ret, mask = cv2.threshold(loaded_image_gray, 220, 255, cv2.THRESH_BINARY_INV)
-        cv2.imshow("mask", mask)
-        # mask_inv = cv2.bitwise_not(mask)
-        cv2.imwrite("./transparent.png", cv2.bitwise_and(image, image, mask=mask))
+        # cv2.imshow("mask", mask)
+        # cv2.imwrite("./transparent.png", cv2.bitwise_and(image, image, mask=mask))
         return cv2.bitwise_and(image, image, mask=mask)
 
 
